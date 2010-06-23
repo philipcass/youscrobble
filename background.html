@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<!--
+ * Copyright (c) 2010 The Chromium Authors. All rights reserved.	Use of this
+ * source code is governed by a BSD-style license that can be found in the
+ * LICENSE file.
+-->
+<html>
+	<head>
+		<script type="text/javascript" src="md5-min.js"></script>
+		<script>
+			var responseJSON;
+			
+			var sessionID = "";
+			var nowPlayingURL;
+			var submissionURL;
+
+			var title;
+			var artist;
+			var startTime;
+			
+			//video info
+			var videoLength;
+			
+			//lastfm requirements
+			var isLongEnough;			//Total length must be greater than 30 seconds
+			var doScrobble;
+			var isStopped;				//If stopped allow scrobble
+			var trackPlayedEnough;		//Must be either 240sec or half length
+			var songValid;		//Must be either 240sec or half length
+		
+			
+			// Called when a message is passed.	We assume that the content script
+			// wants to show the page action.
+			function onRequest(request, sender, sendResponse) {
+				//getVideoInfo(sender.tab.url);
+				if(request.songCallback != null){
+					// Show the page action for the tab that the sender (content script)
+					// was on.
+					chrome.pageAction.show(sender.tab.id);
+			
+					chrome.pageAction.setTitle({tabId:sender.tab.id, title: request.songCallback});
+					songValid = getTrackInfo(request.songCallback);
+					startTime = Math.round(new Date().getTime() / 1000);
+					
+					doScrobble = true;
+				
+
+				}
+				if(request.pageMove != null){
+
+						videoLength = request.runtime;
+						if(videoLength > 30)
+							isLongEnough = true;
+						else
+							isLongEnough = false;
+
+				
+					isStopped = request.pageMove;
+					
+					if(request.currentTime > 240 || request.currentTime > (videoLength/2))
+						trackPlayedEnough = true;
+					else
+						trackPlayedEnough = false;
+					
+					alert("Do scrobble = "+ doScrobble+
+					"\nLong Enough = "+ isLongEnough+
+					"\nsongValid = "+ songValid+
+					"\nisStopped = "+ isStopped +
+					"\ntrackPlayedEnough = "+ trackPlayedEnough);
+					
+					if(doScrobble&&isLongEnough&&songValid&&isStopped&&trackPlayedEnough){
+						alert("scrobble");
+						scrobble();
+						doScrobble=isLongEnough=songValid=isStopped=trackPlayedEnough = false;
+					}else
+						doScrobble=isLongEnough=songValid=isStopped=trackPlayedEnough = false;
+					
+				
+				}
+				// Return nothing to let the connection be cleaned up.
+				sendResponse({});
+			};
+			//Single login on startup
+			lastLogin();
+
+			// Listen for the content script to send a message to the background page.
+			chrome.extension.onRequest.addListener(onRequest);
+		
+			chrome.pageAction.onClicked.addListener(function(tab) {
+				//Insert clever thing here.
+
+
+			});
+			
+			function getTrackInfo(title){
+				var youTitle = title.split("-");
+				var req = new XMLHttpRequest();
+				
+				req.open(
+					"GET",
+					"http://ws.audioscrobbler.com/2.0/?method=track.getinfo"
+					+"&api_key=d3c3844ee8d637df4c77d46d1c499f55"
+					+"&artist="+youTitle[0]
+					+"&track="+youTitle[1],
+					false);
+				
+				req.send();
+			
+				var xmlObj = req.responseXML;
+
+				title = xmlObj.getElementsByTagName('name')[0];
+				artist = xmlObj.getElementsByTagName('name')[1];
+				if(artist.childNodes[0].nodeValue != null && title.childNodes[0].nodeValue != null)
+					return true;
+				else
+					return false;
+			
+			}
+			
+			function lastLogin(){
+				var ts = Math.round(new Date().getTime() / 1000);
+				var passHash = hex_md5(localStorage.password);
+				var authToken = hex_md5(passHash + ts);
+				
+				var req = new XMLHttpRequest();
+				
+				var loginURL = "http://post.audioscrobbler.com/?hs=true&p=1.2.1&c=tst&v=1.0&u="+localStorage.user+"&t="+ts+"&a="+authToken;
+
+				req.open(
+					"GET",
+					loginURL,
+					false);
+					
+				req.onreadystatechange = function() {
+				  if (req.readyState == 4) {
+					alert(req.responseText);
+					sessionID = req.responseText.split("\n")[1];
+                    nowPlayingURL = req.responseText.split("\n")[2];
+                    submissionURL = req.responseText.split("\n")[3];
+
+				  }
+				}
+				
+				req.send();
+			}
+			
+			/*
+			function getVideoInfo(url){
+				var urlTemp = url.split("=");
+				
+				var req = new XMLHttpRequest();
+				req.open(
+					"GET",
+					"http://gdata.youtube.com/feeds/api/videos/lsV500W4BHU?alt=json",
+					true);
+				
+				req.onreadystatechange = function() {
+				  if (req.readyState == 4) {
+					// JSON.parse does not evaluate the attacker's scripts.
+					responseJSON = JSON.parse(req.responseText);
+					//var title = resp.entry.title.$t;
+					//chrome.pageAction.setTitle({tabId:tab.id, title: resp.title.$t});
+
+				  }
+				}
+				req.send();
+				
+			}
+			*/
+			
+			function scrobble() {
+				var req = new XMLHttpRequest();
+				req.open("POST", submissionURL, true);
+				req.onreadystatechange = function() {
+				  if (req.readyState == 4) {
+					alert(req.responseText);
+
+				  }
+				}
+				req.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+				req.send("s="+sessionID+"&" +
+						"a[0]="+artist+"&" +
+						"t[0]="+title+"&" +
+						"i[0]="+startTime+"&" +
+						"&o[0]=P&r[0]=&l[0]=" +
+						"l[0]="+videoLength + "&b[0]=&m[0]=&n[0]=");
+			};
+
+		</script>
+	</head>
+</html>

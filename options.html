@@ -1,0 +1,28 @@
+<html>
+<head>
+	<title>Options for youscrobble</title>
+	<script type="text/javascript">
+		function saveOptions(){
+			localStorage["user"] = document.getElementById("uname").value;
+			localStorage["password"] = document.getElementById("pword").value;
+			window.close();
+		}
+		
+		function loadOptions(){
+			document.getElementById("uname").value = localStorage.user;
+			document.getElementById("pword").value = localStorage.password;
+		
+		}
+	
+	
+	</script>
+</head>
+<body onload="loadOptions()">
+	<h1>last.fm Username:</h1>
+	<input id="uname" type="text" /><br />
+
+	<h1>Password:</h1>
+	<input id="pword" type="password"/><br />
+	<button onclick="saveOptions()">Save</button>
+</body>
+</html>
