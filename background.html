@@ -6,7 +6,7 @@
 -->
 <html>
 	<head>
-		<script type="text/javascript" src="md5-min.js"></script>
+		<script type="text/javascript" src="md5.js"></script>
 		<script>
 			var responseJSON;
 			
@@ -14,8 +14,13 @@
 			var nowPlayingURL;
 			var submissionURL;
 
-			var title;
-			var artist;
+			var mySong = {"title": "",
+			"artist": "",
+			"album": "",
+			"length": "",
+			"mbid": "",};
+			
+
 			var startTime;
 			
 			//video info
@@ -40,11 +45,11 @@
 			
 					chrome.pageAction.setTitle({tabId:sender.tab.id, title: request.songCallback});
 					songValid = getTrackInfo(request.songCallback);
-					startTime = Math.round(new Date().getTime() / 1000);
+					startTime = parseInt(new Date().getTime() / 1000);
 					
 					doScrobble = true;
 				
-
+					nowListening();
 				}
 				if(request.pageMove != null){
 
@@ -108,9 +113,12 @@
 			
 				var xmlObj = req.responseXML;
 
-				title = xmlObj.getElementsByTagName('name')[0];
-				artist = xmlObj.getElementsByTagName('name')[1];
-				if(artist.childNodes[0].nodeValue != null && title.childNodes[0].nodeValue != null)
+				mySong.title = xmlObj.getElementsByTagName('name')[0].childNodes[0].nodeValue;
+				mySong.artist = xmlObj.getElementsByTagName('name')[1].childNodes[0].nodeValue;
+				mySong.length = xmlObj.getElementsByTagName('duration')[0].childNodes[0].nodeValue;
+				mySong.mbid = xmlObj.getElementsByTagName('mbid')[0].childNodes[0].nodeValue;
+
+				if(xmlObj.getElementsByTagName('id')[0].childNodes[0].nodeValue != "")
 					return true;
 				else
 					return false;
@@ -118,7 +126,7 @@
 			}
 			
 			function lastLogin(){
-				var ts = Math.round(new Date().getTime() / 1000);
+				var ts = parseInt(new Date().getTime() / 1000);
 				var passHash = hex_md5(localStorage.password);
 				var authToken = hex_md5(passHash + ts);
 				
@@ -133,10 +141,11 @@
 					
 				req.onreadystatechange = function() {
 				  if (req.readyState == 4) {
-					alert(req.responseText);
-					sessionID = req.responseText.split("\n")[1];
-                    nowPlayingURL = req.responseText.split("\n")[2];
-                    submissionURL = req.responseText.split("\n")[3];
+					alert("Login: " + req.responseText);
+					var lastfmLogin = req.responseText.split("\n");
+					sessionID = lastfmLogin[1];
+                    nowPlayingURL = lastfmLogin[2];
+                    submissionURL = lastfmLogin[3];
 
 				  }
 				}
@@ -168,6 +177,25 @@
 			}
 			*/
 			
+			function nowListening() {
+				var req = new XMLHttpRequest();
+				req.open("POST", nowPlayingURL, true);
+				req.onreadystatechange = function() {
+				  if (req.readyState == 4) {
+					alert("Listening:" + req.responseText);
+
+				  }
+				}
+				req.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+				req.send("s="+sessionID+"&" +
+						"a="+mySong.artist+"&" +
+						"t="+mySong.title+"&" +
+						"b=" +
+						"&i=" +mySong.length+
+						"&n=" +
+						"&m="+mySong.mbid);
+			};
+			
 			function scrobble() {
 				var req = new XMLHttpRequest();
 				req.open("POST", submissionURL, true);
@@ -179,11 +207,11 @@
 				}
 				req.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
 				req.send("s="+sessionID+"&" +
-						"a[0]="+artist+"&" +
-						"t[0]="+title+"&" +
+						"a[0]="+mySong.artist+"&" +
+						"t[0]="+mySong.title+"&" +
 						"i[0]="+startTime+"&" +
 						"&o[0]=P&r[0]=&l[0]=" +
-						"l[0]="+videoLength + "&b[0]=&m[0]=&n[0]=");
+						"l[0]="+mySong.length + "&b[0]=&m[0]="+mySong.mbid+"&n[0]=");
 			};
 
 		</script>
